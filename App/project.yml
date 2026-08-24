@@ -1,0 +1,84 @@
+name: Tarantado
+options:
+  bundleIdPrefix: com.johnreyes.Tarantado
+  deploymentTarget:
+    iOS: "17.0"
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+packages:
+  DAPKit:
+    path: ..
+
+targets:
+  Tarantado:
+    # One target, three platforms. The sources are identical for all of
+    # them; anything genuinely platform-specific is behind #if os(...) in
+    # DAPUI rather than in a separate target here.
+    type: application
+    supportedDestinations: [iOS, macOS]
+    sources:
+      - path: Sources
+      - path: Resources/Assets.xcassets
+    dependencies:
+      - package: DAPKit
+        product: DAPUI
+    info:
+      path: Resources/Info.plist
+      properties:
+        CFBundleDisplayName: Tarantado
+        # Single source of truth: these follow the build settings below, so
+        # a release only ever needs MARKETING_VERSION/CURRENT_PROJECT_VERSION
+        # changed in one place.
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen: {}
+        # A DAP mounts as a removable USB volume, so the user picks it
+        # with the document picker; the app never enumerates volumes itself.
+        NSHumanReadableCopyright: ""
+        # The staged music library lives in Documents (see LocalLibrary), and
+        # these two make that folder visible in the Files app. That is the
+        # whole escape hatch for a library the app otherwise owns: the user
+        # can drag albums in from another app, and get their files back out,
+        # without Tarantado having to implement either.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        # No encryption beyond what the OS provides. Declared here so every
+        # TestFlight upload skips the export-compliance questionnaire.
+        ITSAppUsesNonExemptEncryption: false
+        # An iPad app that does not require full screen must support all four
+        # orientations, or Xcode warns and review flags it. The phone keeps
+        # portrait plus both landscapes.
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+    entitlements:
+      path: Resources/Tarantado.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        com.apple.security.files.user-selected.read-write: true
+        # A picked DAP volume must survive relaunch where the OS allows it;
+        # see BookmarkStore, which treats failure as expected.
+        com.apple.security.files.bookmarks.app-scope: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.johnreyes.Tarantado
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        # Automatic signing against John's team, so the app can install on a
+        # real iPhone or iPad. Overridable without editing this file:
+        #   xcodebuild ... DEVELOPMENT_TEAM=XXXXXXXXXX
+        # A first device build may need -allowProvisioningUpdates so Xcode
+        # can create the profile.
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: 7VB9A7H26M
+        ENABLE_HARDENED_RUNTIME: true
