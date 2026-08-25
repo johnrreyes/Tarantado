@@ -52,8 +52,8 @@ Join the Public TestFlight: https://testflight.apple.com/join/ryKYshWr
 
 ```bash
 swift build && swift test        # unit tests, no hardware needed
-./Scripts/make-test-ipod.sh      # synthetic FAT32 iPod at /Volumes/TESTPOD
-./Scripts/make-test-ipod.sh detach
+./Scripts/make-test-dap.sh       # synthetic FAT32 DAP at /Volumes/TESTPOD
+./Scripts/make-test-dap.sh detach
 ```
 
 `App/` holds an `xcodegen` spec and little else — the entry point is one file, and every screen
