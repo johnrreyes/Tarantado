@@ -2,8 +2,9 @@ import Foundation
 
 /// Removes the AppleDouble artifacts macOS leaves on FAT32 volumes.
 ///
-/// Every classic iPod is FAT32, which has no native support for extended
-/// attributes. When macOS needs to store one it writes a companion `._NAME`
+/// Every player Tarantado supports is FAT32, which has no native support for
+/// extended attributes. When macOS needs to store one it writes a companion
+/// `._NAME`
 /// file — 4 KB apiece — beside the real file. This is not something we ask
 /// for: recent macOS releases stamp `com.apple.provenance` onto written files
 /// automatically, which alone is enough to litter the device.
@@ -15,7 +16,7 @@ import Foundation
 ///
 /// `com.apple.provenance` itself is system-protected and cannot be removed —
 /// even `xattr -c` leaves it in place — so removing the sidecar afterwards is
-/// the only reliable fix. Call this after *any* write to an iPod volume,
+/// the only reliable fix. Call this after *any* write to a DAP volume,
 /// including directory creation.
 public enum AppleDoubleCleanup {
     /// Strips removable extended attributes from `url` and deletes the

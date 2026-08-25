@@ -469,8 +469,8 @@ public enum SyncEngine {
     /// Removes extended attributes from a freshly-copied file, and deletes any
     /// AppleDouble sidecar the filesystem materialized for it.
     ///
-    /// iPods are FAT32, which has no native xattr support, so macOS stores any
-    /// extended attribute in a companion `._NAME` file. Recent macOS releases
+    /// These devices are FAT32, which has no native xattr support, so macOS stores
+    /// any extended attribute in a companion `._NAME` file. Recent macOS releases
     /// tag written files with `com.apple.provenance` automatically — we never
     /// ask for it — which is enough to litter a 4 KB `._FUOR.mp3` next to every
     /// single track. iTunes leaves no such files, and they waste space and clutter

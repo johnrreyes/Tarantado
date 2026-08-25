@@ -1,11 +1,11 @@
 import Foundation
 
-/// A validated, mounted classic-iPod volume: the root of a FAT32 (or
+/// A validated, mounted DAP volume: the root of a FAT32 (or
 /// HFS+, on very old devices) filesystem containing an `iPod_Control`
 /// directory tree.
 ///
 /// Construct one with `DAPVolume.validate(at:)`. That both confirms the
-/// on-disk layout looks like an iPod and resolves the device's identity
+/// on-disk layout looks like a supported player and resolves the device's identity
 /// (`sysInfo`, `model`) up front, so downstream code never has to
 /// re-validate.
 public struct DAPVolume: Sendable, Equatable {
@@ -27,7 +27,7 @@ public struct DAPVolume: Sendable, Equatable {
 
     // MARK: Validation
 
-    /// Describes why `at` doesn't look like a valid iPod volume.
+    /// Describes why `at` doesn't look like a valid DAP volume.
     public enum ValidationError: Error, LocalizedError, Equatable {
         /// `at` exists but isn't a directory.
         case notADirectory(URL)
@@ -117,7 +117,7 @@ public struct DAPVolume: Sendable, Equatable {
     ///
     /// When a device resolves to `.unknown` the only way forward is a new
     /// entry in `DeviceModel`'s table, and the only person who can supply
-    /// the model number is whoever is holding the iPod. So the app has to
+    /// the model number is whoever is holding the device. So the app has to
     /// be able to hand it over — a screenshot of "Unknown iPod" is not
     /// enough to act on.
     public var identityReport: String {
@@ -198,7 +198,7 @@ public struct DAPVolume: Sendable, Equatable {
     /// `volumeAvailableCapacityForImportantUsage` is normally the more honest
     /// number to show a user, because it accounts for space the system
     /// considers purgeable. But it is only meaningful on volumes the system
-    /// manages that way: on a **FAT32 USB volume — i.e. every classic iPod —
+    /// manages that way: on a **FAT32 USB volume — i.e. every player supported here —
     /// it returns 0 even when the disk is nearly empty.** Measured against a
     /// physical iPod mini 2G: `importantUsage` = 0 while the plain available
     /// key correctly reported 23,105,454,080 bytes free of 32,171,130,880.
@@ -254,14 +254,14 @@ public struct DAPVolume: Sendable, Equatable {
     // MARK: Bookmarks
     //
     // IMPORTANT: on iOS, a security-scoped bookmark for a removable/USB
-    // volume (which is how a mounted iPod is exposed via the document
+    // volume (which is how a mounted DAP is exposed via the document
     // picker) does NOT reliably resolve after the volume is remounted —
-    // unplugging and replugging the iPod, plugging into a different port,
+    // unplugging and replugging the device, plugging into a different port,
     // or a Files-app re-enumeration can all change the underlying volume
     // identity enough that resolution fails or `isStale` comes back true.
     // Callers must treat bookmark resolution as best-effort and be ready
     // to fall back to re-presenting a document picker; do not rely on a
-    // saved bookmark alone to "remember" an iPod across app launches.
+    // saved bookmark alone to "remember" a DAP across app launches.
 
     /// Creates a bookmark for `url` suitable for persisting across
     /// launches. Must be called while `url`'s security scope is active

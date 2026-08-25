@@ -68,7 +68,7 @@ public enum DatabaseSignatureRequirement: Sendable, Equatable, CustomStringConve
     }
 }
 
-/// Broad iPod product line. Drives things like whether the click wheel /
+/// Broad product line. Drives things like whether the click wheel /
 /// screen conventions (folder counts, artwork) apply.
 public enum DeviceFamily: Sendable, Equatable {
     case classicOrTouch
@@ -78,7 +78,7 @@ public enum DeviceFamily: Sendable, Equatable {
     case unknown
 }
 
-/// A resolved, human-meaningful description of an iPod model, derived from
+/// A resolved, human-meaningful description of a device model, derived from
 /// its `SysInfo`. Carries the capability flags the rest of the app makes
 /// sync decisions on.
 public struct DeviceModel: Sendable, Equatable {

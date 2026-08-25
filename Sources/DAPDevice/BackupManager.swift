@@ -1,12 +1,12 @@
 import Foundation
 
-/// Snapshots and restores an iPod's database files
+/// Snapshots and restores a DAP's database files
 /// (`iTunesDB`, `iTunesPrefs`, `iTunesPrefs.plist`, `Play Counts`) so a
 /// failed or interrupted write never leaves the device with no usable
 /// database.
 ///
 /// Backups live under `iPod_Control/iTunes/.iopenpod-backups/<timestamp>/`
-/// on the iPod itself (not on the host), so they travel with the device
+/// on the device itself (not on the host), so they travel with it
 /// and survive an app reinstall.
 public struct BackupManager: Sendable {
     public let volume: DAPVolume
@@ -60,7 +60,7 @@ public struct BackupManager: Sendable {
     /// `20260817T143012Z`. This is deliberately not the "extended" format
     /// (`2026-08-17T14:30:12Z`) because `:` is not a legal character in a
     /// FAT32 short or long filename — using it would make the backup
-    /// directory itself unwritable on the iPod's actual filesystem.
+    /// directory itself unwritable on the device's actual filesystem.
     static let timestampFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
@@ -188,7 +188,7 @@ public struct BackupManager: Sendable {
     ///
     /// `FileManager.replaceItemAt` is the normal mechanism for this, but
     /// its semantics are documented against journaled, POSIX-permission
-    /// filesystems — on FAT32 (what an iPod actually uses) it can fail in
+    /// filesystems — on FAT32 (what these devices actually use) it can fail in
     /// ways it wouldn't on APFS/HFS+. When that happens (or when
     /// `forceFallback` is passed, e.g. because the caller already knows
     /// it's targeting a FAT32 volume) this falls back to a plain
