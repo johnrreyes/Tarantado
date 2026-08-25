@@ -11,3 +11,7 @@ App/*.xcodeproj
 
 # Archives, exported .ipa and other release artifacts.
 build/
+
+# Private development notes — see dev/NOTES.md. Kept out of the public repo
+# deliberately; the directory is its own git repository.
+dev/
