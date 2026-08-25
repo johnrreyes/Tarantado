@@ -48,9 +48,28 @@ public struct LocalLibrary: Sendable {
         /// same album is a normal thing to do by accident, so it is reported
         /// rather than treated as an error.
         public var skipped: [String] = []
+        /// Picked items that already live inside the library folder, by
+        /// name — most often the library folder itself. Distinct from
+        /// `skipped`, which is about a file of the same name already being
+        /// there: this is "you pointed the importer at the library", which
+        /// needs a different sentence to be understood.
+        public var alreadyInLibrary: [String] = []
         public var failures: [ImportFailure] = []
 
-        public var isEmpty: Bool { imported.isEmpty && skipped.isEmpty && failures.isEmpty }
+        public var isEmpty: Bool {
+            imported.isEmpty && skipped.isEmpty && alreadyInLibrary.isEmpty && failures.isEmpty
+        }
+    }
+
+    /// True when `url` is the library folder itself or anything inside it.
+    ///
+    /// Both sides are resolved first: `/var` and `/private/var` name the
+    /// same directory through a symlink, and the document picker is free to
+    /// hand back either form.
+    func isInsideLibrary(_ url: URL) -> Bool {
+        let root = folderURL.resolvingSymlinksInPath().path
+        let candidate = url.resolvingSymlinksInPath().path
+        return candidate == root || candidate.hasPrefix(root + "/")
     }
 
     /// Copies audio files from `urls` into the library. Each URL may be a
@@ -60,9 +79,25 @@ public struct LocalLibrary: Sendable {
     ///
     /// Picked URLs are security-scoped, and the scope has to be held for the
     /// whole recursive walk, not just the top-level call.
+    ///
+    /// Items that already live inside the library are reported, not copied —
+    /// see `alreadyInLibrary`.
     public func importItems(from urls: [URL]) throws -> ImportSummary {
         var summary = ImportSummary()
         for url in urls {
+            // Importing the library into itself copies every file one level
+            // deeper — `Local Library/Local Library/...` — and the scanner
+            // then finds both copies and reports every track twice. The
+            // files are already in the library by definition, so there is
+            // nothing to do but say so.
+            //
+            // This is reachable in normal use: with `UIFileSharingEnabled`
+            // the library folder shows up in the Files app, so "Add Folder"
+            // can be pointed straight at it.
+            guard !isInsideLibrary(url) else {
+                summary.alreadyInLibrary.append(url.lastPathComponent)
+                continue
+            }
             do {
                 try DAPVolume.withAccess(to: url) {
                     var isDirectory: ObjCBool = false

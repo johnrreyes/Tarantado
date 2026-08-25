@@ -9,6 +9,7 @@ import SwiftUI
 /// are disabled and say why, which is the whole reason for modelling them as
 /// data (`Step.availability`) instead of plain `NavigationLink`s.
 public struct RootView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var model = AppModel()
     @State private var selection: Step? = .device
 
@@ -73,6 +74,12 @@ public struct RootView: View {
             }
             #endif
             await model.attemptAutoReconnect()
+        }
+        // Music copied into the library folder through the Files app arrives
+        // with no notification to us, and usually while the app is
+        // backgrounded. Coming back to the app is the moment to look again.
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .active { model.refreshLocalLibrary() }
         }
         // Each step's primary button both acts and navigates — see the
         // `step` binding handed to the detail views. Inferring the move from

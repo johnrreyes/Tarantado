@@ -201,6 +201,12 @@ import DAPSync
         Issue.record("scan did not finish in time (state: \(model.scanState))")
     }
 
+    /// Shared with `LocalLibraryRefreshTests`, which needs a file the
+    /// scanner will actually accept.
+    static func writeWAVForRefreshTests(to url: URL) throws {
+        try writeWAV(to: url)
+    }
+
     /// Minimal 16-bit stereo PCM WAV — enough for AVAsset to open and for
     /// the scanner to classify.
     private static func writeWAV(to url: URL, seconds: Double = 0.2, sampleRate: Int = 44_100) throws {
@@ -220,5 +226,75 @@ import DAPSync
             append(v); append(v)
         }
         try data.write(to: url)
+    }
+}
+
+/// Music copied into the library folder from the Files app arrives with no
+/// notification, so returning to the app has to look again. These cover the
+/// conditions under which that refresh is and isn't allowed to fire.
+@Suite struct LocalLibraryRefreshTests {
+    private func makeLibrary() throws -> (LocalLibrary, URL) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        return (LocalLibrary(folderURL: root), root)
+    }
+
+    @MainActor
+    private func waitForScan(_ model: AppModel) async throws {
+        for _ in 0..<200 {
+            switch model.scanState {
+            case .scanned, .failed, .cancelled: return
+            default: try await Task.sleep(for: .milliseconds(25))
+            }
+        }
+        Issue.record("scan did not finish in time")
+    }
+
+    @MainActor
+    @Test func picksUpFilesThatAppearedWhileTheAppWasntLooking() async throws {
+        let (library, root) = try makeLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let model = AppModel(localLibrary: library)
+        try await waitForScan(model)
+        #expect(model.sourceTracks.isEmpty)
+
+        // Stand-in for a copy made in the Files app: the file lands in the
+        // folder with the app none the wiser.
+        try AppModelTests.writeWAVForRefreshTests(to: root.appendingPathComponent("dropped.wav"))
+
+        model.refreshLocalLibrary()
+        try await waitForScan(model)
+
+        #expect(model.sourceTracks.count == 1)
+        #expect(model.sourceTracks.first?.fileURL.lastPathComponent == "dropped.wav")
+    }
+
+    @MainActor
+    @Test func leavesAnExternalFolderAlone() async throws {
+        // macOS scans an external folder in place through a security-scoped
+        // URL. Refreshing would switch the source back to the local library
+        // underneath the user.
+        let external = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: external, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: external) }
+        let (library, root) = try makeLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let model = AppModel(localLibrary: library)
+        model.useExternalFolder(external)
+        try await waitForScan(model)
+
+        model.refreshLocalLibrary()
+
+        #expect(model.isUsingExternalFolder)
+        #expect(model.sourceFolderURL == external)
+    }
+
+    @MainActor
+    @Test func doesNothingWithoutALibrary() async throws {
+        let model = AppModel(localLibrary: nil)
+        model.refreshLocalLibrary()
+        #expect(model.sourceFolderURL == nil)
     }
 }

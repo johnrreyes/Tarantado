@@ -176,6 +176,28 @@ public final class AppModel: @unchecked Sendable {
         startScan()
     }
 
+    /// Rescans the local library if it is what we are currently showing.
+    ///
+    /// Files can arrive in the library folder without the app doing anything:
+    /// `UIFileSharingEnabled` puts the folder in the Files app, so music can
+    /// be copied straight into the container — usually while this app is
+    /// backgrounded or not running. Nothing notifies us when that happens, so
+    /// without a rescan the tracks are on disk and invisible, and the obvious
+    /// workaround (pointing "Add Folder" at the library) used to import the
+    /// library into itself and show everything twice.
+    ///
+    /// Deliberately does nothing when the source is an external folder: that
+    /// scan came from a security-scoped picker URL, and `useLocalLibrary()`
+    /// would silently switch the source out from under the user. Also skips
+    /// while a scan, import or sync is already in flight rather than
+    /// restarting work that is nearly done.
+    public func refreshLocalLibrary() {
+        guard localLibrary != nil, !isUsingExternalFolder, !isImporting else { return }
+        if case .scanning = scanState { return }
+        if case .syncing = syncState { return }
+        useLocalLibrary()
+    }
+
     /// macOS only: scans a folder where it sits, without copying it into the
     /// library. Kept because syncing straight from an existing ~/Music tree
     /// is the natural thing to do on a Mac, and duplicating a large library

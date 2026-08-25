@@ -156,6 +156,14 @@ struct LocalLibraryView: View {
             Menu {
                 Button("Add Songs…", systemImage: "music.note") { present(.songs) }
                 Button("Add Folder…", systemImage: "folder") { present(.foldersToImport) }
+                Divider()
+                // For music dropped into Tarantado's folder from the Files
+                // app. That happens outside the app entirely, so returning to
+                // the app rescans automatically — this is the same thing on
+                // demand, for a copy that finished while the app was already
+                // in front.
+                Button("Refresh", systemImage: "arrow.clockwise") { model.useLocalLibrary() }
+                    .disabled(model.isUsingExternalFolder)
                 #if os(macOS)
                 Divider()
                 // On a Mac the user already has a music library on disk;
@@ -192,7 +200,7 @@ struct LocalLibraryView: View {
         if model.isUsingExternalFolder {
             return "\(externalFolderName) contains no files Tarantado recognizes as audio. It looks for \(LibraryScanner.candidateExtensions.sorted().joined(separator: ", ")) anywhere inside, including subfolders."
         }
-        return "Add music here first, then choose what to copy to your DAP. Files are stored inside Tarantado, so they stay available whether or not a DAP is plugged in — and you can also drag music into Tarantado's folder from the Files app."
+        return "Add music here first, then choose what to copy to your DAP. Files are stored inside Tarantado, so they stay available whether or not a DAP is plugged in.\n\nYou can also copy music straight into On My iPhone/iPad → Tarantado → Local Library in the Files app; it appears here next time you open Tarantado."
     }
 
     private func scanningState(_ progress: LibraryScanner.Progress?) -> some View {
@@ -417,6 +425,19 @@ struct ImportSummarySheet: View {
                     LabeledContent("Added", value: "\(summary.summary.imported.count)")
                     if !summary.summary.skipped.isEmpty {
                         LabeledContent("Already in library", value: "\(summary.summary.skipped.count)")
+                    }
+                }
+                // Picking Tarantado's own folder is an easy mistake to make
+                // once that folder is visible in the Files app, and "Added 0"
+                // on its own reads like a failure.
+                if !summary.summary.alreadyInLibrary.isEmpty {
+                    Section("Already in your library") {
+                        ForEach(summary.summary.alreadyInLibrary, id: \.self) { name in
+                            Text(name)
+                        }
+                        Text("These are already inside Tarantado's library folder, so there was nothing to copy. Anything you add to that folder from the Files app shows up here on its own.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
                     }
                 }
                 if !summary.summary.failures.isEmpty {

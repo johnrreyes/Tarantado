@@ -198,3 +198,100 @@ import Testing
         #expect(library.totalBytes() == 350)
     }
 }
+
+/// With `UIFileSharingEnabled` the library folder is visible in the Files
+/// app, so "Add Folder" can be pointed straight at the library itself. That
+/// used to copy every file one level deeper and show every track twice.
+@Suite struct ImportingTheLibraryIntoItselfTests {
+    private func makeLibrary() throws -> (LocalLibrary, URL) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        return (LocalLibrary(folderURL: root), root)
+    }
+
+    private func write(_ url: URL) throws {
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(repeating: 0xAB, count: 32).write(to: url)
+    }
+
+    private func audioFileCount(in root: URL) -> Int {
+        guard let enumerator = FileManager.default.enumerator(at: root, includingPropertiesForKeys: nil) else { return 0 }
+        var count = 0
+        for case let url as URL in enumerator where url.pathExtension.lowercased() == "mp3" { count += 1 }
+        return count
+    }
+
+    @Test func pickingTheLibraryFolderItselfCopiesNothing() throws {
+        let (library, root) = try makeLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        try write(root.appendingPathComponent("Album/01.mp3"))
+        try write(root.appendingPathComponent("Album/02.mp3"))
+
+        let summary = try library.importItems(from: [root])
+
+        #expect(summary.imported.isEmpty)
+        #expect(summary.failures.isEmpty)
+        #expect(summary.alreadyInLibrary == [root.lastPathComponent])
+        // The point of the whole thing: still two files, not four.
+        #expect(audioFileCount(in: root) == 2)
+        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent(root.lastPathComponent).path))
+    }
+
+    @Test func pickingASubfolderOfTheLibraryCopiesNothing() throws {
+        let (library, root) = try makeLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let album = root.appendingPathComponent("Album", isDirectory: true)
+        try write(album.appendingPathComponent("01.mp3"))
+
+        let summary = try library.importItems(from: [album])
+
+        #expect(summary.imported.isEmpty)
+        #expect(summary.alreadyInLibrary == ["Album"])
+        #expect(audioFileCount(in: root) == 1)
+    }
+
+    @Test func pickingASingleFileAlreadyInTheLibraryCopiesNothing() throws {
+        let (library, root) = try makeLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let track = root.appendingPathComponent("loose.mp3")
+        try write(track)
+
+        let summary = try library.importItems(from: [track])
+
+        #expect(summary.imported.isEmpty)
+        #expect(summary.alreadyInLibrary == ["loose.mp3"])
+        #expect(audioFileCount(in: root) == 1)
+    }
+
+    @Test func anOutsideFolderStillImportsNormally() throws {
+        let (library, root) = try makeLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let outside = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: outside) }
+        try write(outside.appendingPathComponent("Album/01.mp3"))
+
+        let summary = try library.importItems(from: [outside.appendingPathComponent("Album", isDirectory: true)])
+
+        #expect(summary.alreadyInLibrary.isEmpty)
+        #expect(summary.imported.count == 1)
+        #expect(audioFileCount(in: root) == 1)
+    }
+
+    @Test func aMixedPickImportsTheOutsideItemAndSkipsTheInsideOne() throws {
+        let (library, root) = try makeLibrary()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let outside = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: outside) }
+        try write(outside.appendingPathComponent("New.mp3"))
+        try write(root.appendingPathComponent("Old.mp3"))
+
+        let summary = try library.importItems(from: [
+            outside.appendingPathComponent("New.mp3"),
+            root.appendingPathComponent("Old.mp3"),
+        ])
+
+        #expect(summary.imported.count == 1)
+        #expect(summary.alreadyInLibrary == ["Old.mp3"])
+        #expect(audioFileCount(in: root) == 2)
+    }
+}
