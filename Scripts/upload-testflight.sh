@@ -26,9 +26,21 @@ ARCHIVE="build/Tarantado.xcarchive"
 EXPORT_DIR="build/export"
 
 # Every TestFlight upload needs a build number no ASC build has used before.
-# Derived from the commit count so it always moves forward without a manual
+# A UTC timestamp, YYMMDD.HHMM, so it always moves forward without a manual
 # edit; override by exporting BUILD_NUMBER.
-BUILD_NUMBER="${BUILD_NUMBER:-$(git rev-list --count HEAD)}"
+#
+# This used to be `git rev-list --count HEAD`, which was fine until the repo's
+# history was replaced with a single root commit before publishing: the count
+# dropped from 17 to 3, and every upload after that would have been rejected
+# for reusing a build number. A clock cannot be rewound by a rebase.
+#
+# Split across a period rather than one YYMMDDHHMM integer because Apple caps
+# each component of a build number at INT32, and the ten-digit form (2608242121)
+# is over it. Two components sort the same way and stay readable. Taken from a
+# single `date` call so the two halves cannot straddle a minute boundary, and in
+# UTC so a machine in another timezone can't produce a lower number than the
+# previous upload.
+BUILD_NUMBER="${BUILD_NUMBER:-$(date -u +%y%m%d.%H%M)}"
 echo "==> Building build number ${BUILD_NUMBER}"
 
 rm -rf "$ARCHIVE" "$EXPORT_DIR"

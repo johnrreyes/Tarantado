@@ -42,9 +42,12 @@ ASC_KEY_ID=XXXXXXXXXX ASC_ISSUER_ID=aaaaaaaa-bbbb-... \
   Scripts/upload-testflight.sh
 ```
 
-The script archives, exports, validates, and uploads. The build number comes
-from `git rev-list --count HEAD`, so it always increases; override with
-`BUILD_NUMBER=N` if you need to. Marketing version lives in `App/project.yml`
+The script archives, exports, validates, and uploads. The build number is a
+UTC timestamp, `YYMMDD.HHMM`, so it always increases no matter what happens to
+the repository; override with `BUILD_NUMBER=N` if you need to. It was
+previously the commit count, which broke when history was replaced with a
+single root commit ahead of publishing — the count fell from 17 to 3, below
+build numbers already uploaded. Marketing version lives in `App/project.yml`
 as `MARKETING_VERSION` (currently `1.0`) — bump it there and re-run
 `xcodegen generate`.
 
