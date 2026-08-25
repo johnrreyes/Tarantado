@@ -1,15 +1,14 @@
 # Tarantado
 
-Swift-native iPod library manager for iPhone, iPad and Mac. Underlying iPod management
+Swift-native digital audio player (DAP) library manager for iPhone, iPad and Mac. Underlying supported DAP management
 functionality from [iOpenPod](https://github.com/TheRealSavi/iOpenPod) (Python/PyQt6), rebuilt from
-scratch in Swift so an iPad can act as the host computer for a classic iPod over USB.
+scratch in Swift so an iPhone or iPad can act as the host computer for a digital audio player over USB.
 
-Connect a click-wheel iPod, stage music in the app, review what will change, and sync. No iTunes,
-no desktop required.
+Connect a supported DAP via USB Mass Storage (see below for supported DAPs), import your legally owned, DRM-free music files, review what will change, and sync. No desktop required.
 
 ## How it works
 
-Tarantado edits the iPod's existing `iTunesDB` rather than regenerating it. The database is parsed
+Tarantado edits the existing DAP’s music database rather than regenerating it. The database is parsed
 into a chunk tree that preserves every unrecognized chunk's **raw bytes**; only track and playlist
 entries are mutated, and the tree is re-serialized. An untouched database round-trips to identical
 bytes, including the fields this library doesn't interpret — which is what keeps firmware
@@ -21,18 +20,16 @@ hardware-verified facts. When a device isn't recognized, the app refuses to writ
 
 | Module | What it does |
 |---|---|
-| `DAPDB` | The `iTunesDB` binary format: parse, mutate, serialize |
+| `DAPDB` | The DAP binary format: parse, mutate, serialize |
 | `DAPDevice` | Volume validation, device identity, filename allocation, backups |
 | `DAPSync` | Source scanning (AVFoundation), diffing, transfer |
-| `DAPUI` | Shared SwiftUI views: Device, iPod Library, Playlists, Local Library, Review, Sync |
+| `DAPUI` | Shared SwiftUI views: Device, DAP Library, Playlists, Local Library, Review, Sync |
 | `dapctl` | macOS CLI harness for driving real hardware |
 
 No third-party dependencies. Metadata via `AVAsset`, device I/O via `FileManager` and
 security-scoped URLs.
 
 ## Supported devices
-
-Writable — these predate the September 2007 firmware refresh and check no database signature:
 
 | Model | Order numbers |
 |---|---|
@@ -51,6 +48,8 @@ what a new entry gets built from.
 
 ## Development
 
+Join the Public TestFlight: https://testflight.apple.com/join/ryKYshWr
+
 ```bash
 swift build && swift test        # unit tests, no hardware needed
 ./Scripts/make-test-ipod.sh      # synthetic FAT32 iPod at /Volumes/TESTPOD
@@ -61,7 +60,7 @@ swift build && swift test        # unit tests, no hardware needed
 lives in the `DAPUI` package library, so the whole UI layer stays buildable and testable with
 `swift build` / `swift test` and no Xcode project.
 
-Unit tests can only prove the parser agrees with the writer. Only the iPod's own firmware can prove
+Unit tests can only prove the parser agrees with the writer. Only the DAP's own firmware can prove
 the byte layout is right, so anything touching the database format is validated against a physical
 device before it's trusted.
 
