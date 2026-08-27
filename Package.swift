@@ -42,7 +42,14 @@ let package = Package(
         .testTarget(
             name: "DAPDeviceTests",
             dependencies: ["DAPDevice"],
-            resources: [.process("SysInfo-mini2g.txt"), .process("SysInfo-ipod4g.txt")],
+            resources: [
+                .process("SysInfo-mini2g.txt"),
+                .process("SysInfo-ipod4g.txt"),
+                // .copy, not .process: SwiftPM would otherwise treat an XML
+                // property list as a resource to compile rather than a byte
+                // stream to hand back verbatim.
+                .copy("SysInfoExtended-ipod5g.xml"),
+            ],
             swiftSettings: [.swiftLanguageMode(.v6)]
         ),
         .testTarget(name: "DAPSyncTests", dependencies: ["DAPSync"], swiftSettings: [.swiftLanguageMode(.v6)]),

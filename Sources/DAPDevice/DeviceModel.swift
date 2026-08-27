@@ -244,17 +244,25 @@ public struct DeviceModel: Sendable, Equatable {
         ),
 
         // iPod 5th generation ("iPod with video", A1136, October 2005).
-        // Not hardware-verified — corroborated by EveryMac and iLounge model
-        // listings. All four launch SKUs differ only in capacity and case
-        // color. Two years before the hash58 refresh, so no signature; the
-        // 2.5" color screen does carry album art.
+        // The four launch SKUs differ only in capacity and case color, and
+        // are corroborated by EveryMac and iLounge model listings. No
+        // signature, and the 2.5" color screen carries album art.
+        //
+        // The *generation* is hardware-verified (see the `iPodFamily` 6 case
+        // in `resolve(iPodFamily:)`), but these SKU keys are not what a real
+        // 5G matches on — the reference device reports no `ModelNumStr` at
+        // all. They are kept for a device that does report one, and their
+        // capabilities are held identical to the family-6 entry by
+        // `fivethGenSKUTableAgreesWithTheFamilyFallback`, so a device's
+        // fate never turns on whether iTunes happened to write a SKU.
         "MA002": DeviceModel(
             displayName: "iPod (5th generation, 30GB, white)",
             generation: "iPod 5G",
             family: .classicOrTouch,
             requiresDatabaseSignature: .none,
             supportsArtwork: true,
-            musicFolderCount: 50
+            musicFolderCount: 50,
+            playlistSectionType: 3
         ),
         "MA146": DeviceModel(
             displayName: "iPod (5th generation, 30GB, black)",
@@ -262,7 +270,8 @@ public struct DeviceModel: Sendable, Equatable {
             family: .classicOrTouch,
             requiresDatabaseSignature: .none,
             supportsArtwork: true,
-            musicFolderCount: 50
+            musicFolderCount: 50,
+            playlistSectionType: 3
         ),
         "MA003": DeviceModel(
             displayName: "iPod (5th generation, 60GB, white)",
@@ -270,7 +279,8 @@ public struct DeviceModel: Sendable, Equatable {
             family: .classicOrTouch,
             requiresDatabaseSignature: .none,
             supportsArtwork: true,
-            musicFolderCount: 50
+            musicFolderCount: 50,
+            playlistSectionType: 3
         ),
         "MA147": DeviceModel(
             displayName: "iPod (5th generation, 60GB, black)",
@@ -278,12 +288,16 @@ public struct DeviceModel: Sendable, Equatable {
             family: .classicOrTouch,
             requiresDatabaseSignature: .none,
             supportsArtwork: true,
-            musicFolderCount: 50
+            musicFolderCount: 50,
+            playlistSectionType: 3
         ),
 
         // iPod 5th generation "enhanced" (5.5G, September 2006) — same A1136
         // enclosure, brighter screen, 30GB/80GB. Model numbers per EveryMac's
         // 5th-generation-enhanced specs page. Still a year before hash58.
+        // Same SKU-key caveat as the launch SKUs above; the reference device
+        // could itself be one of these, since nothing it reports separates
+        // 5G from 5.5G.
         // Worth listing separately from the 5G launch SKUs because flash-mod
         // rebuilds in the wild are usually 5.5G boards, and a reporter's
         // "iPod video" is as likely to be one of these as an MA002.
@@ -293,7 +307,8 @@ public struct DeviceModel: Sendable, Equatable {
             family: .classicOrTouch,
             requiresDatabaseSignature: .none,
             supportsArtwork: true,
-            musicFolderCount: 50
+            musicFolderCount: 50,
+            playlistSectionType: 3
         ),
         "MA446": DeviceModel(
             displayName: "iPod (5th generation, 30GB, black)",
@@ -301,7 +316,8 @@ public struct DeviceModel: Sendable, Equatable {
             family: .classicOrTouch,
             requiresDatabaseSignature: .none,
             supportsArtwork: true,
-            musicFolderCount: 50
+            musicFolderCount: 50,
+            playlistSectionType: 3
         ),
         "MA448": DeviceModel(
             displayName: "iPod (5th generation, 80GB, white)",
@@ -309,7 +325,8 @@ public struct DeviceModel: Sendable, Equatable {
             family: .classicOrTouch,
             requiresDatabaseSignature: .none,
             supportsArtwork: true,
-            musicFolderCount: 50
+            musicFolderCount: 50,
+            playlistSectionType: 3
         ),
         "MA450": DeviceModel(
             displayName: "iPod (5th generation, 80GB, black)",
@@ -317,7 +334,8 @@ public struct DeviceModel: Sendable, Equatable {
             family: .classicOrTouch,
             requiresDatabaseSignature: .none,
             supportsArtwork: true,
-            musicFolderCount: 50
+            musicFolderCount: 50,
+            playlistSectionType: 3
         ),
 
         // Confirmed to exist via product documentation search (SellYourMac /
@@ -417,6 +435,48 @@ public struct DeviceModel: Sendable, Equatable {
                 supportsArtwork: false,
                 musicFolderCount: 50,
                 isUnknown: true
+            )
+        case 6:
+            // Observed on a physically connected iPod 5th generation
+            // ("video") — `Tests/DAPDeviceTests/SysInfoExtended-ipod5g.xml`,
+            // FamilyID 6, UpdaterFamilyID 25, firmware 1.3.
+            //
+            // Unlike families 3 and 4, this case resolves to a *usable*
+            // model rather than the conservative unknown fallback, because
+            // on this generation the family ID is all we get. A 5G restored
+            // by a later iTunes writes no plain-text `SysInfo` and a
+            // `SysInfoExtended` with **no `ModelNumStr` and no
+            // `BoardHwName`** — the reference device carries only
+            // SerialNumber, FamilyID, UpdaterFamilyID and the build IDs. So
+            // the eight MA002…MA450 entries above can never match a real
+            // device of this generation, and holding the conservative
+            // posture here would mean every 5G in the wild is permanently
+            // unwritable, not merely unidentified.
+            //
+            // `.none` is hardware-verified on the reference device
+            // 2026-08-26, not inferred from the pre-September-2007 hash58
+            // boundary the SKU entries above rest on: a Tarantado-written
+            // database was booted in the Apple firmware and the device read
+            // it back intact — all 4342 tracks, no signature computed.
+            //
+            // The capacity/color SKU stays unresolved on purpose. Nothing
+            // here depends on it, and the device supplies nothing to resolve
+            // it with.
+            return DeviceModel(
+                displayName: "iPod (5th generation, \"video\")",
+                generation: "iPod 5G",
+                family: .classicOrTouch,
+                requiresDatabaseSignature: .none,
+                supportsArtwork: true,
+                musicFolderCount: 50,
+                // Verified on the reference device 2026-08-26, same method
+                // as the mini 2G and the 4G: three playlists holding
+                // identical tracks written into mhsd sections 2, 3 and 5 in
+                // one pass, then booted into the Apple firmware. Only the
+                // section 3 playlist appeared under Music -> Playlists.
+                // Third generation in a row to browse section 3, and again
+                // not the section holding the most playlists.
+                playlistSectionType: 3
             )
         default:
             return .unknown

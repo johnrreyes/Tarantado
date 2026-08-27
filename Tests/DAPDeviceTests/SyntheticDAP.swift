@@ -78,6 +78,19 @@ enum SyntheticDAP {
         fixtureURL("SysInfo-ipod4g.txt")
     }
 
+    /// URL of the bundled copy of the real iPod 5G ("video")
+    /// `SysInfoExtended`. Verbatim except for the serial number and
+    /// FireWire GUID, which are anonymized the same way the two SysInfo
+    /// fixtures above are.
+    ///
+    /// Note what this file does *not* contain: `ModelNumStr` or
+    /// `BoardHwName`. That absence is the point of keeping it — it is why
+    /// a real 5G resolves through the `iPodFamily` fallback rather than the
+    /// SKU table, and it is exactly what a doctored fixture would paper over.
+    static var sampleSysInfoExtended5GURL: URL {
+        fixtureURL("SysInfoExtended-ipod5g.xml")
+    }
+
     private static func fixtureURL(_ name: String) -> URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()

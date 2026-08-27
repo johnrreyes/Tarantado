@@ -41,6 +41,47 @@ import Testing
         #expect(resolvedNano.requiresDatabaseSignature == .hash58)
     }
 
+    @Test func resolvesIPod5GFromRealSysInfoExtended() throws {
+        let sysInfo = try #require(
+            SysInfo(sysInfoExtendedContentsOf: SyntheticDAP.sampleSysInfoExtended5GURL)
+        )
+
+        // The premise of the family-6 fallback: this generation hands us no
+        // SKU at all, so the MA002…MA450 table entries can never match it.
+        #expect(sysInfo.modelNumber == nil)
+        #expect(sysInfo.boardHwName == nil)
+        #expect(sysInfo.iPodFamily == 6)
+
+        let model = DeviceModel.resolve(from: sysInfo)
+        #expect(model.generation == "iPod 5G")
+        #expect(model.family == .classicOrTouch)
+        #expect(model.supportsArtwork == true)
+        #expect(model.musicFolderCount == 50)
+
+        // Writable: the whole point of the entry.
+        #expect(model.isUnknown == false)
+        #expect(model.requiresDatabaseSignature == .none)
+
+        // Browsable mhsd section, verified on this exact device 2026-08-26.
+        #expect(model.playlistSectionType == 3)
+    }
+
+    @Test func fivethGenSKUTableAgreesWithTheFamilyFallback() {
+        // If someone later edits one of the SKU entries, the family-6
+        // fallback a real device actually lands on must not drift away from
+        // it — a device would then be sync-capable or not depending purely
+        // on whether iTunes happened to write a ModelNumStr.
+        let fallback = DeviceModel.resolve(from: SysInfo(parsing: "iPodFamily: 0x00000006\n"))
+        for sku in ["MA002", "MA146", "MA003", "MA147", "MA444", "MA446", "MA448", "MA450"] {
+            let resolved = DeviceModel.resolve(from: SysInfo(parsing: "ModelNumStr: \(sku)\n"))
+            #expect(resolved.requiresDatabaseSignature == fallback.requiresDatabaseSignature, "\(sku)")
+            #expect(resolved.supportsArtwork == fallback.supportsArtwork, "\(sku)")
+            #expect(resolved.musicFolderCount == fallback.musicFolderCount, "\(sku)")
+            #expect(resolved.family == fallback.family, "\(sku)")
+            #expect(resolved.playlistSectionType == fallback.playlistSectionType, "\(sku)")
+        }
+    }
+
     @Test func unknownModelNumberWithNoFamilyFallsBackToUnknown() {
         let sysInfo = SysInfo(parsing: "ModelNumStr: ZZ9999\n")
         let model = DeviceModel.resolve(from: sysInfo)
@@ -102,12 +143,15 @@ import Testing
         #expect(model.playlistSectionType == 3)
     }
 
-    @Test func fifthGenerationPlaylistSectionStaysUnverified() {
-        // No 5G hardware has been checked, so playlist creation must still
-        // refuse on those models rather than assume the 4G's section 3.
+    @Test func fifthGenerationBrowsesSectionThree() {
+        // Was `fifthGenerationPlaylistSectionStaysUnverified`, asserting nil
+        // while no 5G had been checked. Verified on hardware 2026-08-26:
+        // playlists written into sections 2, 3 and 5 in one pass, and only
+        // the section 3 one appeared under Music -> Playlists. The guard now
+        // pins the answer instead of the absence of one.
         for number in ["MA002", "MA146", "MA003", "MA147", "MA444", "MA446", "MA448", "MA450"] {
             let model = DeviceModel.resolve(from: SysInfo(parsing: "ModelNumStr: \(number)\n"))
-            #expect(model.playlistSectionType == nil, "\(number)")
+            #expect(model.playlistSectionType == 3, "\(number)")
         }
     }
 

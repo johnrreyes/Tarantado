@@ -36,15 +36,22 @@ security-scoped URLs.
 | iPod mini (1st gen) | `M9160` |
 | iPod mini (2nd gen) | `M9800`, `M9802` |
 | iPod (4th gen) | `M9282`, `M9268` |
-| iPod (5th gen, "video") | `MA002`, `MA146`, `MA003`, `MA147` |
+| iPod (5th gen, "video") | `MA002`, `MA146`, `MA003`, `MA147`, or any device reporting `iPodFamily` 6 |
 | iPod (5th gen enhanced) | `MA444`, `MA446`, `MA448`, `MA450` |
 
 Recognized but **not** writable, because their firmware checks a `hash58` signature Tarantado can't
 compute yet: iPod classic 6G (`MB147`), classic late-2008 (`MB562`), nano 3G (`MB249`).
 
-The iPod mini 2G and iPod 4G entries are verified against physical hardware. The rest come from
-product documentation. An unrecognized iPod can share its identity from the Device screen, which is
-what a new entry gets built from.
+The iPod mini 2G, iPod 4G and iPod 5G entries are verified against physical hardware. The rest come
+from product documentation. An unrecognized iPod can share its identity from the Device screen, which
+is what a new entry gets built from.
+
+The 5th gen is matched on `iPodFamily` rather than an order number, because a real one supplies no
+order number to match on: a 5G restored by a later iTunes writes an empty plain-text `SysInfo` and a
+`SysInfoExtended` carrying no `ModelNumStr` and no `BoardHwName`. The `MA…` numbers above are kept
+for devices that do report one, but the family match is what a device in the wild actually lands on.
+Capacity and case color therefore stay unresolved on a 5G — nothing Tarantado does depends on
+either.
 
 ## Development
 
