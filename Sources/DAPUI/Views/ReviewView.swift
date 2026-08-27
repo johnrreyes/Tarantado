@@ -57,7 +57,12 @@ struct ReviewView: View {
             if !plan.toAdd.isEmpty {
                 Section("Add (\(plan.toAdd.count)) — \(Formatting.bytes(plan.bytesRequired))") {
                     ForEach(plan.toAdd, id: \.source.fileURL) { item in
-                        row(title: item.source.title, subtitle: item.source.artist, trailing: Formatting.bytes(item.source.fileSize))
+                        row(
+                            title: item.source.title,
+                            subtitle: item.source.artist,
+                            trailing: Formatting.bytes(item.source.fileSize),
+                            artwork: .some(item.source.artworkData)
+                        )
                     }
                 }
             }
@@ -105,8 +110,17 @@ struct ReviewView: View {
         return plan.fits(in: capacity)
     }
 
-    private func row(title: String, subtitle: String?, trailing: String?) -> some View {
+    /// `artwork` is a double optional so this can tell "this row type has no
+    /// artwork concept at all" (Remove/Skipped rows, the default `nil`) apart
+    /// from "this track has the concept but no actual art" (Add rows for a
+    /// track with no embedded cover, `.some(nil)`) — the former shows nothing,
+    /// the latter shows the placeholder, keeping every row in the Add
+    /// section the same height rather than only the ones with real art.
+    private func row(title: String, subtitle: String?, trailing: String?, artwork: Data?? = nil) -> some View {
         HStack {
+            if let artwork {
+                ArtworkThumbnailView(data: artwork, size: 32)
+            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
                 if let subtitle {

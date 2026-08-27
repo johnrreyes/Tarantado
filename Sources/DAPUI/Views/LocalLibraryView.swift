@@ -298,6 +298,7 @@ struct LocalLibraryView: View {
             HStack {
                 Image(systemName: model.selectedFileURLs.contains(track.fileURL) ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(model.selectedFileURLs.contains(track.fileURL) ? Color.accentColor : .secondary)
+                ArtworkThumbnailView(data: track.artworkData)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(track.title)
                     Text(secondaryLabel(for: track))

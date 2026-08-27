@@ -8,6 +8,7 @@ import DAPSync
 //
 //   dapctl info  <volume>
 //   dapctl list  <volume>
+//   dapctl artwork <volume>
 //   dapctl scan  <source-folder>
 //   dapctl plan  <volume> <source> [--limit N]
 //   dapctl sync  <volume> <source> [--limit N] [--yes]
@@ -90,6 +91,16 @@ func printInfo(_ volume: DAPVolume) throws {
     } else {
         print("Tracks:           (no iTunesDB on device yet)")
     }
+
+    if volume.model.supportsArtwork {
+        if FileManager.default.fileExists(atPath: volume.artworkDBURL.path),
+           let artworkData = try? Data(contentsOf: volume.artworkDBURL),
+           let artworkDB = try? ArtworkDatabase(parsing: artworkData) {
+            print("Artwork images:   \(artworkDB.images.count)  (see `dapctl artwork` for detail)")
+        } else {
+            print("Artwork images:   (no ArtworkDB on device yet)")
+        }
+    }
 }
 
 func printList(_ volume: DAPVolume) throws {
@@ -116,16 +127,20 @@ func printScan(_ sourceFolder: URL, model: DeviceModel) async throws {
     }
 
     var compatibleCount = 0
+    var artworkCount = 0
     for track in tracks.sorted(by: { $0.fileURL.path < $1.fileURL.path }) {
         switch track.compatibility {
         case .passThrough(let format):
             compatibleCount += 1
-            print("OK    [\(format.kind.rawValue)] \(track.artist ?? "?") - \(track.title)  (\(formatDuration(ms: track.durationMS)), \(formatBytes(track.fileSize)))  <- \(track.fileURL.lastPathComponent)")
+            let art = track.artworkData != nil
+            if art { artworkCount += 1 }
+            let artMarker = art ? "[art]" : "     "
+            print("OK \(artMarker) [\(format.kind.rawValue)] \(track.artist ?? "?") - \(track.title)  (\(formatDuration(ms: track.durationMS)), \(formatBytes(track.fileSize)))  <- \(track.fileURL.lastPathComponent)")
         case .unsupported(let reason):
             print("SKIP  \(track.fileURL.lastPathComponent): \(reason)")
         }
     }
-    print("\n\(tracks.count) file(s) found, \(compatibleCount) compatible, \(tracks.count - compatibleCount) skipped")
+    print("\n\(tracks.count) file(s) found, \(compatibleCount) compatible (\(artworkCount) with embedded artwork), \(tracks.count - compatibleCount) skipped")
 }
 
 func buildPlan(volume: DAPVolume, sourceFolder: URL, limit: Int?) async throws -> SyncPlan {
@@ -150,9 +165,12 @@ func buildPlan(volume: DAPVolume, sourceFolder: URL, limit: Int?) async throws -
 }
 
 func printPlan(_ plan: SyncPlan) {
-    print("To add (\(plan.toAdd.count)):")
+    let artworkCount = plan.toAdd.filter { $0.source.artworkData != nil }.count
+    let artworkSuffix = plan.toAdd.isEmpty ? "" : " (\(artworkCount) with embedded artwork)"
+    print("To add (\(plan.toAdd.count))\(artworkSuffix):")
     for item in plan.toAdd {
-        print("  + \(item.source.artist ?? "?") - \(item.source.title)  (\(formatBytes(item.source.fileSize)))  <- \(item.source.fileURL.lastPathComponent)")
+        let artMarker = item.source.artworkData != nil ? "[art] " : ""
+        print("  + \(artMarker)\(item.source.artist ?? "?") - \(item.source.title)  (\(formatBytes(item.source.fileSize)))  <- \(item.source.fileURL.lastPathComponent)")
     }
     print("\nTo remove (\(plan.toRemove.count)):")
     for item in plan.toRemove {
@@ -548,6 +566,7 @@ guard let command = arguments.first else {
     Usage:
       dapctl info  <volume>
       dapctl list  <volume>
+      dapctl artwork <volume>
       dapctl scan  <source-folder>
       dapctl plan  <volume> <source> [--limit N]
       dapctl sync  <volume> <source> [--limit N] [--yes]
