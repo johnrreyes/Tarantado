@@ -20,6 +20,12 @@ public struct ByteWriter {
         bytes.append(UInt8((v >> 8) & 0xff))
     }
 
+    /// Signed 16-bit write (used by ArtworkDB's `mhni` padding fields and
+    /// `mhod` type tag, which libgpod declares as `gint16`).
+    public mutating func i16(_ v: Int16) {
+        u16(UInt16(bitPattern: v))
+    }
+
     public mutating func u32(_ v: UInt32) {
         for i in 0..<4 { bytes.append(UInt8((v >> (8 * i)) & 0xff)) }
     }

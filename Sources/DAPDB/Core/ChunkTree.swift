@@ -167,6 +167,13 @@ public enum ChunkTree {
             }
             let chunk = Chunk(tag: tag, headerLen: UInt32(headerLen), headerBytes: headerBytes, children: children, trailingBytes: Data())
             return (chunk, cursor)
+
+        case .opaqueLeaf:
+            // Extent is exactly headerLen -- no children, no trailing
+            // region, and offset 8 is ordinary payload data (already
+            // captured in headerBytes above), not a length or count.
+            let chunk = Chunk(tag: tag, headerLen: UInt32(headerLen), headerBytes: headerBytes, children: [], trailingBytes: Data())
+            return (chunk, offset + headerLen)
         }
     }
 

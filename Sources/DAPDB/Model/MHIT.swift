@@ -133,6 +133,23 @@ public struct MHIT: Equatable {
         /// groups these under "Compilations" rather than by album artist.
         public var compilation: Bool = false
 
+        /// Whether this track carries artwork, offset 164. `0` = never
+        /// checked (this library's behavior before album art support: every
+        /// track written this way), `1` = has artwork, `2` = explicitly
+        /// checked and found none. Cross-checked against libgpod's
+        /// `itdb_track.c` (`track->has_artwork = 0x01`/`0x02`) and
+        /// independently against iOpenPod's `mhit_defs.py`. Left at the
+        /// default `0` for devices this library doesn't attempt artwork on.
+        public var hasArtwork: UInt8 = 0
+        /// `1` if a source image was packed into this track's tags, matching
+        /// libgpod's fixed `track->artwork_count = 1` (a legacy MP3-tag-era
+        /// count, not the number of on-device thumbnail formats generated —
+        /// see `MHII`'s doc). `0` when there's no artwork. Offset 124.
+        public var artworkCount: UInt16 = 0
+        /// Byte size of the *source* image (e.g. the embedded JPEG), mirrored
+        /// into the correlated `MHII.origImageSize`. Offset 128.
+        public var artworkSize: UInt32 = 0
+
         public init(uniqueID: UInt32) {
             self.uniqueID = uniqueID
         }
@@ -186,9 +203,9 @@ public struct MHIT: Equatable {
         w.u8(0) // checked +120
         w.u8(0) // app_rating +121
         w.u16(0) // BPM +122
-        w.u16(0) // artwork_count +124
+        w.u16(fields.artworkCount) // +124
         w.u16(0) // unk126
-        w.u32(0) // artwork_size +128
+        w.u32(fields.artworkSize) // +128
         w.u32(0) // unk132
         w.u32(0) // samplerate2 +136
         w.u32(0) // dateReleased +140
@@ -198,7 +215,7 @@ public struct MHIT: Equatable {
         w.u32(0) // unk152
         w.u32(0) // skipcount +156
         w.u32(0) // last_skipped +160
-        w.u8(0) // has_artwork +164
+        w.u8(fields.hasArtwork) // +164
         w.u8(0) // skip_when_shuffling +165
         w.u8(0) // remember_playback_position +166
         w.u8(0) // flag4 +167

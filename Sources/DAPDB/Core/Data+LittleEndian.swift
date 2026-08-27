@@ -18,6 +18,12 @@ extension Data {
         return UInt16(b0) | (UInt16(b1) << 8)
     }
 
+    /// Signed little-endian 16-bit read (used by ArtworkDB's `mhni` padding
+    /// fields and `mhod` type tag, which libgpod declares as `gint16`).
+    func leI16(at offset: Int) -> Int16? {
+        leU16(at: offset).map { Int16(bitPattern: $0) }
+    }
+
     func leU32(at offset: Int) -> UInt32? {
         guard offset >= 0, offset + 4 <= count else { return nil }
         var v: UInt32 = 0

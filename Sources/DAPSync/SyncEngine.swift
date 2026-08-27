@@ -216,6 +216,61 @@ public enum SyncEngine {
             return candidate
         }
 
+        // MARK: Parse (or create) ArtworkDB
+        //
+        // Only for models `DeviceModel.supportsArtwork` — every other device
+        // is left exactly as before this feature existed, including devices
+        // this library already refuses to write to for unrelated reasons
+        // (the `requiresDatabaseSignature` guard above already stops those).
+        //
+        // A missing ArtworkDB is treated as "no artwork synced yet" and
+        // started fresh. One that exists but fails to parse is different: an
+        // ArtworkDB in a shape this library doesn't understand is not
+        // something to guess about by silently replacing it, so artwork is
+        // skipped for this sync rather than risking real content that just
+        // couldn't be read. Consistent with `DeviceModel`'s "refuse rather
+        // than guess" posture elsewhere in this module.
+        var artworkEnabled = volume.model.supportsArtwork
+        var artworkDB: ArtworkDatabase?
+        if artworkEnabled {
+            if FileManager.default.fileExists(atPath: volume.artworkDBURL.path) {
+                if let existingArtData = try? Data(contentsOf: volume.artworkDBURL),
+                   let parsed = try? ArtworkDatabase(parsing: existingArtData) {
+                    artworkDB = parsed
+                } else {
+                    artworkEnabled = false
+                }
+            } else {
+                artworkDB = ArtworkDatabase.makeEmpty(
+                    formats: ArtworkEncoder.ipod5GFormats.map {
+                        (formatID: $0.formatID, imageSizeBytes: UInt32($0.width * $0.height * 2))
+                    }
+                )
+            }
+        }
+
+        var usedImageIDs = Set(artworkDB?.images.map(\.imageID) ?? [])
+        var nextImageID = artworkDB.map { UInt32(MHFD($0.root)?.nextID ?? 100) } ?? 100
+        func allocateImageID() -> UInt32 {
+            var candidate = max(nextImageID, (usedImageIDs.max() ?? 0) &+ 1)
+            while usedImageIDs.contains(candidate) { candidate &+= 1 }
+            usedImageIDs.insert(candidate)
+            nextImageID = candidate &+ 1
+            return candidate
+        }
+
+        let artworkFileWriter = artworkEnabled ? ArtworkFileWriter(volume: volume) : nil
+        // Keyed on the raw source image bytes, not a hash of them — these
+        // are small (tens of KB) and `Data` is already `Hashable`, so this
+        // avoids pulling in a hashing dependency for no real benefit. Lets
+        // an album's dozen identically-tagged tracks encode and write their
+        // shared cover art to `.ithmb` exactly once per sync, rather than
+        // once per track — mirroring iOpenPod's `artwork_writer.py` dedup,
+        // though libgpod's own writer doesn't bother (it re-embeds per
+        // track). Every track still gets its own `mhii`; only the pixel
+        // bytes and their `.ithmb` location are shared.
+        var artworkLocationCache: [Data: [ArtworkThumbnailLocation]] = [:]
+
         // MARK: Add
 
         var copiedFileURLs: [URL] = []
@@ -291,6 +346,42 @@ public enum SyncEngine {
                 fields.mediaType = 1 // ITDB_MEDIATYPE_AUDIO
                 fields.compilation = item.source.isCompilation
 
+                if artworkEnabled, let artworkFileWriter {
+                    if let artworkData = item.source.artworkData {
+                        do {
+                            let locations = try await locateOrEncodeArtwork(
+                                artworkData, writer: artworkFileWriter, cache: &artworkLocationCache
+                            )
+                            let thumbnails = locations.map { location in
+                                MHNI.make(
+                                    formatID: location.formatID,
+                                    ithmbOffset: location.offset,
+                                    imageSize: UInt32(location.pixelByteCount),
+                                    imageWidth: location.imageWidth,
+                                    imageHeight: location.imageHeight,
+                                    horizontalPadding: location.horizontalPadding,
+                                    verticalPadding: location.verticalPadding,
+                                    ithmbFileName: ":" + location.filename
+                                )
+                            }
+                            var imageFields = MHII.Fields(imageID: allocateImageID(), songID: fields.dbid)
+                            imageFields.origImageSize = UInt32(clamping: artworkData.count)
+                            try artworkDB?.addImage(MHII.make(imageFields, thumbnails: thumbnails))
+
+                            fields.hasArtwork = 1
+                            fields.artworkCount = 1
+                            fields.artworkSize = UInt32(clamping: artworkData.count)
+                        } catch {
+                            // Soft failure, matching `SourceTrack.artworkData`'s
+                            // own contract: a track whose art can't be decoded
+                            // or written still syncs, just without art.
+                            fields.hasArtwork = 2
+                        }
+                    } else {
+                        fields.hasArtwork = 2
+                    }
+                }
+
                 var strings: [MHOD.Kind: String] = [.location: allocated.iPodPath, .filetype: item.format.filetypeString]
                 strings[.title] = item.source.title
                 if let artist = item.source.artist { strings[.artist] = artist }
@@ -344,6 +435,7 @@ public enum SyncEngine {
                     }
                 }
                 try db.removeTrack(uniqueID: item.deviceTrack.uniqueID)
+                artworkDB?.removeImage(forTrackDBID: item.deviceTrack.dbid)
                 report.removed.append(SyncReport.RemoveResult(uniqueID: item.deviceTrack.uniqueID))
             } catch {
                 report.failures.append(SyncReport.Failure(
@@ -365,6 +457,20 @@ public enum SyncEngine {
         let serialized = db.serialized()
         try BackupManager.atomicWrite(serialized, to: volume.iTunesDBURL, forceFallback: false)
 
+        if artworkEnabled, var finalArtworkDB = artworkDB {
+            finalArtworkDB.setNextImageID(nextImageID)
+            try BackupManager.atomicWrite(finalArtworkDB.serialized(), to: volume.artworkDBURL, forceFallback: false)
+        }
+        // Known gap, same shape as the one documented on `apply` above for
+        // mid-removal cancellation: a cancelled or failed sync can leave
+        // `.ithmb` bytes appended for tracks whose `mhit`/`mhii` never made
+        // it into a written database (both `db` and `artworkDB` only reach
+        // disk here, at the very end). Those bytes are inert and
+        // unreferenced by anything — unlike an orphaned whole audio file,
+        // there's no user-visible clutter, just a few extra KB of dead space
+        // in a `.ithmb` file — so this is left undone rather than adding
+        // rollback machinery for appended byte ranges.
+
         // Per-write stripping is not sufficient on its own. Each write site
         // strips the sidecar it just caused, but macOS stamps
         // `com.apple.provenance` asynchronously — under App Sandbox it can
@@ -380,6 +486,56 @@ public enum SyncEngine {
         AppleDoubleCleanup.stripRecursively(in: volume.controlDirectory)
 
         return report
+    }
+
+    // MARK: - Artwork
+
+    /// Where one thumbnail format's pixels ended up, resolved either by
+    /// encoding fresh bytes or by reusing an already-written location for
+    /// artwork this sync has already seen (see `artworkLocationCache` in
+    /// `apply`).
+    private struct ArtworkThumbnailLocation {
+        let formatID: UInt32
+        let filename: String
+        let offset: UInt32
+        let pixelByteCount: Int
+        let imageWidth: UInt16
+        let imageHeight: UInt16
+        let horizontalPadding: Int16
+        let verticalPadding: Int16
+    }
+
+    /// Encodes `artworkData` into every device thumbnail format and appends
+    /// each to its `.ithmb` file, or — if this exact image's bytes are
+    /// already in `cache` from earlier in this same sync — returns the
+    /// locations already written, encoding and writing nothing.
+    private static func locateOrEncodeArtwork(
+        _ artworkData: Data,
+        writer: ArtworkFileWriter,
+        cache: inout [Data: [ArtworkThumbnailLocation]]
+    ) async throws -> [ArtworkThumbnailLocation] {
+        if let cached = cache[artworkData] {
+            return cached
+        }
+
+        let thumbnails = try ArtworkEncoder.encode(artworkData)
+        var locations: [ArtworkThumbnailLocation] = []
+        locations.reserveCapacity(thumbnails.count)
+        for thumbnail in thumbnails {
+            let written = try await writer.append(formatID: thumbnail.formatID, pixelData: thumbnail.pixelData)
+            locations.append(ArtworkThumbnailLocation(
+                formatID: thumbnail.formatID,
+                filename: written.filename,
+                offset: written.offset,
+                pixelByteCount: thumbnail.pixelData.count,
+                imageWidth: thumbnail.imageWidth,
+                imageHeight: thumbnail.imageHeight,
+                horizontalPadding: thumbnail.horizontalPadding,
+                verticalPadding: thumbnail.verticalPadding
+            ))
+        }
+        cache[artworkData] = locations
+        return locations
     }
 
     /// A human-readable description of an error, preferring one the error

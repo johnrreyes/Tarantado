@@ -87,6 +87,32 @@ import DAPDevice
         }
     }
 
+    @Test func scanExtractsEmbeddedCoverArt() async throws {
+        let root = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let artwork = SyntheticImage.makeJPEG(width: 40, height: 40)
+        let fileURL = root.appendingPathComponent("track.m4a")
+        try await SyntheticAudio.makeAAC(at: fileURL, tags: SyntheticAudio.Tags(title: "Has Art", artworkData: artwork))
+
+        let tracks = try await LibraryScanner.scan(sourceFolder: root, model: Self.mini2gModel)
+        #expect(tracks.count == 1)
+        let track = try #require(tracks.first)
+        #expect(track.artworkData != nil)
+        #expect(track.artworkData?.isEmpty == false)
+    }
+
+    @Test func scanLeavesArtworkDataNilWhenThereIsNoEmbeddedArt() async throws {
+        let root = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        try SyntheticAudio.makeWAV(at: root.appendingPathComponent("No Art.wav"))
+
+        let tracks = try await LibraryScanner.scan(sourceFolder: root, model: Self.mini2gModel)
+        #expect(tracks.count == 1)
+        #expect(tracks.first?.artworkData == nil)
+    }
+
     @Test func scanSkipsNonAudioFilesSilently() async throws {
         let root = try makeTempDir()
         defer { try? FileManager.default.removeItem(at: root) }

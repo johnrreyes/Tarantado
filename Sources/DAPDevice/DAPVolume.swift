@@ -150,12 +150,24 @@ public struct DAPVolume: Sendable, Equatable {
         controlDirectory.appendingPathComponent("Music", isDirectory: true)
     }
 
+    /// `iPod_Control/Artwork` — album-art thumbnails (`.ithmb` files) and
+    /// `ArtworkDB` live here. Only meaningful when `model.supportsArtwork`;
+    /// the directory may not exist yet on a device that has never had
+    /// artwork synced to it.
+    public var artworkDirectory: URL {
+        controlDirectory.appendingPathComponent("Artwork", isDirectory: true)
+    }
+
     public var sysInfoURL: URL {
         deviceDirectory.appendingPathComponent("SysInfo", isDirectory: false)
     }
 
     public var iTunesDBURL: URL {
         iTunesDirectory.appendingPathComponent("iTunesDB", isDirectory: false)
+    }
+
+    public var artworkDBURL: URL {
+        artworkDirectory.appendingPathComponent("ArtworkDB", isDirectory: false)
     }
 
     public var iTunesPrefsURL: URL {

@@ -467,6 +467,19 @@ public struct DeviceModel: Sendable, Equatable {
                 generation: "iPod 5G",
                 family: .classicOrTouch,
                 requiresDatabaseSignature: .none,
+                // Hardware-verified 2026-08-27, not just inherited from the
+                // SKU table above: a track with embedded cover art was added
+                // via `SyncEngine` (new `mhii`/`mhni` entries appended to the
+                // device's real, pre-existing `ArtworkDB`, two thumbnails
+                // appended to its real, pre-existing `.ithmb` files) and the
+                // reference device displayed the art on its Now Playing
+                // screen and played the track normally. This is also what
+                // proved format IDs 1028 (100x100) and 1029 (200x200), both
+                // RGB565LE — sourced from libgpod's `itdb_device.c` and
+                // independently corroborated by iOpenPod, but now confirmed
+                // against this exact device rather than either source alone.
+                // See `DAPDB`'s `MHII`/`MHNI`/`ArtworkMHOD` and `DAPSync`'s
+                // `ArtworkEncoder`.
                 supportsArtwork: true,
                 musicFolderCount: 50,
                 // Verified on the reference device 2026-08-26, same method

@@ -18,11 +18,13 @@ enum SyntheticAudio {
         var totalDiscs: Int?
         var year: Int?
         var compilation: Bool?
+        var artworkData: Data?
 
         init(
             title: String? = nil, artist: String? = nil, album: String? = nil, albumArtist: String? = nil,
             genre: String? = nil, composer: String? = nil, trackNumber: Int? = nil, totalTracks: Int? = nil,
-            discNumber: Int? = nil, totalDiscs: Int? = nil, year: Int? = nil, compilation: Bool? = nil
+            discNumber: Int? = nil, totalDiscs: Int? = nil, year: Int? = nil, compilation: Bool? = nil,
+            artworkData: Data? = nil
         ) {
             self.title = title
             self.artist = artist
@@ -36,6 +38,7 @@ enum SyntheticAudio {
             self.totalDiscs = totalDiscs
             self.year = year
             self.compilation = compilation
+            self.artworkData = artworkData
         }
     }
 
@@ -152,6 +155,9 @@ enum SyntheticAudio {
         }
         if let compilation = tags.compilation {
             add(.iTunesMetadataDiscCompilation, NSNumber(value: compilation))
+        }
+        if let artworkData = tags.artworkData {
+            add(.iTunesMetadataCoverArt, artworkData as NSData)
         }
         return items
     }

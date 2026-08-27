@@ -27,6 +27,12 @@ public struct SourceTrack: Sendable, Equatable, Identifiable {
     public var bitrateKbps: Int?
     public var sampleRateHz: Int?
     public var isCompilation: Bool
+    /// Embedded cover art, as the original encoded image bytes (e.g. a JPEG
+    /// from an ID3 `APIC` frame) — not yet resized or pixel-format-converted.
+    /// `nil` if the file carries no embedded artwork, or the tag couldn't be
+    /// read; a track with `nil` here just syncs without art rather than
+    /// failing. See `ArtworkEncoder` for turning this into device thumbnails.
+    public var artworkData: Data?
 
     public var compatibility: AudioCompatibility
 
@@ -48,6 +54,7 @@ public struct SourceTrack: Sendable, Equatable, Identifiable {
         bitrateKbps: Int? = nil,
         sampleRateHz: Int? = nil,
         isCompilation: Bool = false,
+        artworkData: Data? = nil,
         compatibility: AudioCompatibility
     ) {
         self.fileURL = fileURL
@@ -67,6 +74,7 @@ public struct SourceTrack: Sendable, Equatable, Identifiable {
         self.bitrateKbps = bitrateKbps
         self.sampleRateHz = sampleRateHz
         self.isCompilation = isCompilation
+        self.artworkData = artworkData
         self.compatibility = compatibility
     }
 }
@@ -183,6 +191,7 @@ public enum LibraryScanner {
         }
 
         let extracted = await MetadataExtractor.extract(from: metadataItems)
+        let artworkData = await MetadataExtractor.extractArtwork(from: metadataItems)
         let fallback = FilenameFallback.derive(fileURL: url)
 
         return SourceTrack(
@@ -203,6 +212,7 @@ public enum LibraryScanner {
             bitrateKbps: bitrateKbps,
             sampleRateHz: sampleRateHz,
             isCompilation: extracted.isCompilation,
+            artworkData: artworkData,
             compatibility: compatibility
         )
     }
@@ -305,6 +315,23 @@ enum MetadataExtractor {
         result.isCompilation = await boolValue(items, .iTunesMetadataDiscCompilation)
 
         return result
+    }
+
+    /// Pulls the embedded cover-art image out of `items`, if present, as the
+    /// original encoded bytes (JPEG/PNG — whatever the tag actually carries;
+    /// `ArtworkEncoder` is what decodes it). Tries the container-agnostic
+    /// "common" identifier first (AVFoundation maps ID3 `APIC` and iTunes
+    /// `covr` atoms onto it), then falls back to the format-specific ones
+    /// directly, mirroring `firstString`'s fallback pattern.
+    static func extractArtwork(from items: [AVMetadataItem]) async -> Data? {
+        for identifier in [AVMetadataIdentifier.commonIdentifierArtwork, .id3MetadataAttachedPicture, .iTunesMetadataCoverArt] {
+            let matches = AVMetadataItem.metadataItems(from: items, filteredByIdentifier: identifier)
+            guard let item = matches.first else { continue }
+            if let data = try? await item.load(.dataValue), !data.isEmpty {
+                return data
+            }
+        }
+        return nil
     }
 
     private static func firstString(_ items: [AVMetadataItem], _ identifiers: [AVMetadataIdentifier]) async -> String? {

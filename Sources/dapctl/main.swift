@@ -190,6 +190,58 @@ func runList(_ args: [String]) throws {
     try printList(volume)
 }
 
+/// Read-only: parses `ArtworkDB` and reports what's in it, without writing
+/// anything. Exists to validate the parser against whatever a real device's
+/// own iTunes-written ArtworkDB actually looks like, before this library's
+/// writer ever touches it.
+func runArtwork(_ args: [String]) throws {
+    let (positional, _, _, _) = parseFlags(args)
+    guard positional.count == 1 else { fail("usage: dapctl artwork <volume>") }
+    let volume = try openVolume(positional[0])
+
+    guard FileManager.default.fileExists(atPath: volume.artworkDBURL.path) else {
+        print("No ArtworkDB at \(volume.artworkDBURL.path)")
+        return
+    }
+    let data = try Data(contentsOf: volume.artworkDBURL)
+    print("ArtworkDB: \(formatBytes(Int64(data.count))) on disk")
+
+    let db = try ArtworkDatabase(parsing: data)
+    print("Images:    \(db.images.count)")
+    print("Files:     \(db.files.count)")
+    for file in db.files.sorted(by: { $0.formatID < $1.formatID }) {
+        print("  format \(file.formatID): mhif declares \(file.imageSize) bytes/thumbnail")
+    }
+
+    var countByFormat: [UInt32: Int] = [:]
+    var sizeMismatches = 0
+    for image in db.images {
+        for thumb in image.thumbnails {
+            countByFormat[thumb.formatID, default: 0] += 1
+            if let expected = db.files.first(where: { $0.formatID == thumb.formatID })?.imageSize, expected != thumb.imageSize {
+                sizeMismatches += 1
+            }
+        }
+    }
+    for (formatID, count) in countByFormat.sorted(by: { $0.key < $1.key }) {
+        print("  format \(formatID): \(count) thumbnail(s) referenced across all images")
+    }
+    if sizeMismatches > 0 {
+        print("  \(sizeMismatches) thumbnail(s) whose mhni.imageSize disagrees with its format's mhif.imageSize")
+    }
+
+    // Round-trip check: does this library's serializer reproduce the exact
+    // bytes it just parsed? This is the load-bearing question for a real
+    // device's own ArtworkDB, the same standard `ChunkTreeRoundTripTests`
+    // holds iTunesDB parsing to.
+    let reserialized = db.serialized()
+    if reserialized == data {
+        print("\nRound-trip: OK (serialize(parse(data)) == data, byte-for-byte)")
+    } else {
+        print("\nRound-trip: MISMATCH — \(reserialized.count) bytes reserialized vs \(data.count) on disk")
+    }
+}
+
 func runScan(_ args: [String]) async throws {
     let (positional, _, _, _) = parseFlags(args)
     guard positional.count == 1 else { fail("usage: dapctl scan <source-folder>") }
@@ -514,6 +566,8 @@ do {
         try runInfo(rest)
     case "list":
         try runList(rest)
+    case "artwork":
+        try runArtwork(rest)
     case "scan":
         try await runScan(rest)
     case "plan":

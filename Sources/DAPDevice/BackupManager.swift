@@ -39,7 +39,14 @@ public struct BackupManager: Sendable {
     }
 
     /// Fixed backup order: the set of files a backup captures.
-    private static let managedFileOrder = ["iTunesDB", "iTunesPrefs", "iTunesPrefs.plist", "Play Counts"]
+    ///
+    /// `ArtworkDB` is included, but the `.ithmb` pixel files it references
+    /// are not — those are large, regenerable from `ArtworkDB` + the source
+    /// library, and backing up every thumbnail on every sync would make
+    /// backups far more expensive for comparatively little safety: an
+    /// `ArtworkDB` restored without its `.ithmb` files just shows blank/stale
+    /// art for whatever changed, not a corrupt database.
+    private static let managedFileOrder = ["iTunesDB", "iTunesPrefs", "iTunesPrefs.plist", "Play Counts", "ArtworkDB"]
 
     /// Maps a managed filename to its live destination URL on `volume`.
     private static func destination(forFileNamed fileName: String, on volume: DAPVolume) -> URL? {
@@ -48,6 +55,7 @@ public struct BackupManager: Sendable {
         case "iTunesPrefs": return volume.iTunesPrefsURL
         case "iTunesPrefs.plist": return volume.iTunesPrefsPlistURL
         case "Play Counts": return volume.playCountsURL
+        case "ArtworkDB": return volume.artworkDBURL
         default: return nil
         }
     }

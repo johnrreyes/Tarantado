@@ -15,6 +15,12 @@ enum ChunkFamily {
     /// exactly `count` children have been read. The chunk's extent is
     /// whatever byte range those children actually occupy.
     case countedList
+
+    /// Offset 8 is ordinary payload data — not a length, not a count. The
+    /// chunk's extent is exactly `[offset, offset + headerLen)`: no
+    /// children, nothing beyond the header. Only `mhaf` is known to need
+    /// this — see `ChunkTag.opaqueLeafTags`.
+    case opaqueLeaf
 }
 
 enum ChunkTag {
@@ -42,7 +48,28 @@ enum ChunkTag {
     /// classified as `.sizedContainer` (the default) below.
     static let countedListTags: Set<String> = ["mhlt", "mhlp", "mhla", "mhli", "mhlf"]
 
+    /// `mhaf` is an undocumented chunk found nested one level inside every
+    /// `mhii` in a real iPod 5G's ArtworkDB (as the sole child of a
+    /// container `mhod` of type 6 — iOpenPod's `ArtworkMhodType` already
+    /// names that type `UNKNOWN_CONTAINER_6` without explaining it either;
+    /// no source available to this project documents `mhaf` itself). No
+    /// authoritative reference for its shape exists, so this is classified
+    /// purely from observed bytes on a real device: header at some offset
+    /// declares `headerLen 96`, and the four bytes at offset 8 — where a
+    /// sized-container's `totalLen` normally lives — hold `60`, which is
+    /// neither a valid `totalLen` (less than `headerLen`, the same
+    /// contradiction that first exposed `mhli`) nor a plausible child count
+    /// (there is no room for 60 further "mh"-tagged children before the
+    /// next sibling starts exactly at `headerLen` bytes later). Reading it
+    /// as this third, simpler shape — extent equals `headerLen`, offset 8 is
+    /// just data this library doesn't interpret — is the one interpretation
+    /// that matches the bytes exactly, confirmed by a byte-for-byte
+    /// round-trip against the real ArtworkDB that surfaced this (see
+    /// `dapctl artwork`, run against a real connected 5G).
+    static let opaqueLeafTags: Set<String> = ["mhaf"]
+
     static func family(for tag: String) -> ChunkFamily {
+        if opaqueLeafTags.contains(tag) { return .opaqueLeaf }
         if countedListTags.contains(tag) { return .countedList }
         // Unknown "mhl?" tags follow the same naming convention as every list
         // header above, so guess family B rather than fail the whole database.
@@ -65,11 +92,17 @@ enum ChunkTag {
 
     static func derivedCountFields(for tag: String) -> [DerivedCountField] {
         switch tag {
-        case "mhbd":
-            // offset 20: number of top-level mhsd sections.
+        case "mhbd", "mhfd":
+            // offset 20: number of top-level mhsd sections. "mhfd" is
+            // ArtworkDB's root, structurally the same shape as iTunesDB's
+            // "mhbd" at this offset (cross-checked against libgpod's
+            // `_MhfdHeader` in db-itunes-parser.h).
             return [DerivedCountField(offset: 20, countsChildrenWithTag: "mhsd")]
-        case "mhit", "mhia", "mhip":
-            // offset 12: number of child mhod chunks.
+        case "mhit", "mhia", "mhip", "mhii", "mhni":
+            // offset 12: number of child mhod chunks. "mhii" (one artwork
+            // image entry) and "mhni" (one thumbnail format within it) are
+            // ArtworkDB's counterparts to "mhit"/"mhip" here — same shape,
+            // per libgpod's `_MhiiHeader`/`_MhniHeader`.
             return [DerivedCountField(offset: 12, countsChildrenWithTag: "mhod")]
         case "mhyp":
             // offset 12: number of child mhod chunks; offset 16: number of child mhip chunks.
@@ -98,6 +131,8 @@ extension Chunk {
         switch ChunkTag.family(for: tag) {
         case .countedList:
             headerBytes.setLE(UInt32(children.count), at: 8)
+        case .opaqueLeaf:
+            break // offset 8 is ordinary data here, never a derived field.
         case .sizedContainer:
             let total = serializedByteCount
             headerBytes.setLE(UInt32(total), at: 8)
